@@ -1,14 +1,15 @@
 package main
 
 import (
-    "io"
+	"bytes"
     "fmt"
+	"io"
+	"io/ioutil"
     "log"
     "net"
     "sync"
     "time"
-    "bytes"
-    "io/ioutil"
+
     "golang.org/x/crypto/ssh"
     "golang.org/x/crypto/ssh/agent"
     "golang.org/x/crypto/ssh/terminal"
@@ -159,6 +160,22 @@ func (s *SSHServer) SessionForward(startTime time.Time, sshConn *ssh.ServerConn,
     if len(remote.LoginUser) > 0 {
         clientConfig.User = remote.LoginUser
     }
+
+	if len(remote.LoginPrivate) > 0 {
+		hostKeyData, err := ioutil.ReadFile(remote.LoginPrivate)
+		if err != nil {
+			log.Printf("Error LoginPrivate reading host key file (%s) for remote (%s): %s", remote.LoginPrivate, remote_name, err)
+			return
+		}
+
+		hostKey, err := ssh.ParsePrivateKey(hostKeyData)
+		if err != nil {
+			log.Printf("Error LoginPrivate parsing host key file (%s) for remote (%s): %s", remote.LoginPrivate, remote_name, err)
+			return
+		}
+
+		clientConfig.Auth = append([]ssh.AuthMethod{ssh.PublicKeys(hostKey)}, clientConfig.Auth...)
+	}
 
     // Set up the agent
     if agentForwarding {
