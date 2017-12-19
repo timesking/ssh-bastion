@@ -15,33 +15,82 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
+// type channelOpenDirectMsg struct {
+// 	RAddr string
+// 	RPort uint32
+// 	LAddr string
+// 	LPort uint32
+// }
+
+// // ChannelForward establishes a secure channel forward (ssh -W) to the server
+// // requested by the user, assuming it is a permitted host.
+// func (s *SSHServer) ChannelForward(session *Session, newChannel ssh.NewChannel) {
+// 	var msg channelOpenDirectMsg
+// 	ssh.Unmarshal(newChannel.ExtraData(), &msg)
+// 	address := fmt.Sprintf("%s:%d", msg.RAddr, msg.RPort)
+
+// 	permitted := false
+// 	for _, remote := range session.Remotes {
+// 		if remote == address {
+// 			permitted = true
+// 			break
+// 		}
+// 	}
+
+// 	if !permitted {
+// 		newChannel.Reject(ssh.Prohibited, "remote host access denied for user")
+// 		return
+// 	}
+
+// 	// Log the selection
+// 	if s.Selected != nil {
+// 		if err := s.Selected(session, address); err != nil {
+// 			newChannel.Reject(ssh.Prohibited, "access denied")
+// 			return
+// 		}
+// 	}
+
+// 	conn, err := net.Dial("tcp", address)
+// 	if err != nil {
+// 		newChannel.Reject(ssh.ConnectionFailed, fmt.Sprintf("error: %v", err))
+// 		return
+// 	}
+
+// 	channel, reqs, err := newChannel.Accept()
+
+// 	go ssh.DiscardRequests(reqs)
+// 	var closer sync.Once
+// 	closeFunc := func() {
+// 		channel.Close()
+// 		conn.Close()
+// 	}
+
+// 	go func() {
+// 		io.Copy(channel, conn)
+// 		closer.Do(closeFunc)
+// 	}()
+
+// 	go func() {
+// 		io.Copy(conn, channel)
+// 		closer.Do(closeFunc)
+// 	}()
+// }
+
 type rw struct {
 	io.Reader
 	io.Writer
 }
 
-func (s *SSHServer) SessionForward(startTime time.Time, sshConn *ssh.ServerConn, newChannel ssh.NewChannel, chans <-chan ssh.NewChannel) {
+func (s *SSHServer) SessionForward(sshConn sshConnection, newChannel ssh.NewChannel, chans <-chan ssh.NewChannel) {
 	rawsesschan, sessReqs, err := newChannel.Accept()
 	if err != nil {
 		log.Printf("Unable to Accept Session, closing connection...")
 		sshConn.Close()
 		return
 	}
-	defer sshConn.Close()
 
+	startTime := time.Now()
 	sesschan := NewLogChannel(startTime, rawsesschan, sshConn.User())
-
-	// Handle all incoming channel requests
-	go func() {
-		for newChannel = range chans {
-			if newChannel == nil {
-				return
-			}
-
-			newChannel.Reject(ssh.Prohibited, "remote server denied channel request")
-			continue
-		}
-	}()
 
 	// Proxy the channel and its requests
 	var agentForwarding bool = false
@@ -220,6 +269,7 @@ func (s *SSHServer) SessionForward(startTime time.Time, sshConn *ssh.ServerConn,
 
 	log.Printf("Starting session proxy...")
 	proxy(maskedReqs, reqs2, sesschan, channel2)
+
 }
 
 func proxy(reqs1, reqs2 <-chan *ssh.Request, channel1 *LogChannel, channel2 ssh.Channel) {
