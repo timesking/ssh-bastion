@@ -39,6 +39,7 @@ type SSHConfigACL struct {
 type SSHConfigUser struct {
 	ACL                string `yaml:"acl"`
 	AuthorizedKeysFile string `yaml:"authorized_keys_file"`
+	AwsUser            string `yaml:"awsuser"`
 }
 
 func fetchConfig(filename string) (*SSHConfig, error) {

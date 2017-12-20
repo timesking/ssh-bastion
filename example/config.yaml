@@ -57,5 +57,9 @@ users:
         ## Even if this isn't specified, the user can still pass through public key
         ## authentication to the remote host using ssh-agent forwarding.
         authorized_keys_file:       "data/users/user1.authorized_keys"
+        ## Set AWS IAM User Pubblic key in IAM CodeCommit part
+        ## If awsuser is an AWS IAM user, login system will concat authorized key with authorized_keys_file
+        ## awsuser name could be different with login user name (e.g.user1)
+        awsuser: "xxxxx"
     user2:
         acl:    "admin"

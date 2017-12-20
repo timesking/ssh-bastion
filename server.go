@@ -6,8 +6,12 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"strings"
 	"sync"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/iam"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -32,38 +36,81 @@ func NewSSHServer() (*SSHServer, error) {
 				if user, ok := config.Users[conn.User()]; !ok {
 					return nil, fmt.Errorf("User Not Found in Config for PK")
 				} else {
+					var authKeysDataAll []byte
 					if len(user.AuthorizedKeysFile) > 0 {
 						authKeysData, err := ioutil.ReadFile(user.AuthorizedKeysFile)
 						if err != nil {
 							log.Printf("Unable to read authorized keys file (%s) for user (%s): %s.", user.AuthorizedKeysFile, conn.User(), err)
 							return nil, fmt.Errorf("Unable to read Authorized Keys file.")
 						}
+						authKeysDataAll = append(authKeysDataAll, authKeysData...)
+					}
 
-						for {
-							if len(authKeysData) > 0 {
-								var authKey ssh.PublicKey
-								var err error
-								authKey, _, _, authKeysData, err = ssh.ParseAuthorizedKey(authKeysData)
-								if err != nil {
-									log.Printf("Error while processing authorized keys file (%s) for user (%s)", user.AuthorizedKeysFile, conn.User(), err)
-									return nil, fmt.Errorf("Error while processing authorized keys file.")
-								}
-
-								if (key.Type() == authKey.Type()) && (bytes.Compare(key.Marshal(), authKey.Marshal()) == 0) {
-									perm := &ssh.Permissions{
-										Extensions: map[string]string{
-											"authType": "pk",
-										},
-									}
-									return perm, nil
-								}
+					if len(user.AwsUser) > 0 {
+						var awsAuthKeys []string
+						sess, err := session.NewSession(&aws.Config{
+							Region: aws.String("us-west-2")},
+						)
+						if err != nil {
+							log.Printf("AWS Session created failed. %s", err.Error())
+						} else {
+							// Create a IAM service client.
+							svc := iam.New(sess)
+							var listv iam.ListSSHPublicKeysInput
+							listv.SetUserName(user.AwsUser)
+							sshkeys, errssh := svc.ListSSHPublicKeys(&listv)
+							if errssh != nil {
+								log.Printf("Unable to read authorized keys for AWS User (%s) - (%s): %s.", conn.User(), user.AwsUser, errssh)
 							} else {
-								return nil, fmt.Errorf("No PKs Match - ACCESS DENIED")
+								if sshkeys.SSHPublicKeys != nil {
+									for _, sshKeyMeta := range sshkeys.SSHPublicKeys {
+										sshi := &iam.GetSSHPublicKeyInput{}
+										pubkey, err := svc.GetSSHPublicKey(
+											sshi.SetEncoding("SSH").
+												SetUserName(user.AwsUser).
+												SetSSHPublicKeyId(*sshKeyMeta.SSHPublicKeyId))
+										if err == nil {
+											awsAuthKeys = append(awsAuthKeys, *pubkey.SSHPublicKey.SSHPublicKeyBody)
+										} else {
+											log.Printf("Unable to read authorized keys for AWS User (%s) - (%s): %s.", conn.User(), user.AwsUser, err)
+										}
+									}
+								}
 							}
 						}
-					} else {
-						return nil, fmt.Errorf("User has not authorized keys file specified.")
+
+						if len(awsAuthKeys) > 0 {
+							awsAuthKeysData := []byte(strings.Join(awsAuthKeys, "\n"))
+							authKeysDataAll = append(authKeysDataAll, awsAuthKeysData...)
+							authKeysDataAll = append(authKeysDataAll, []byte("\n")...)
+						}
 					}
+					// log.Printf("All pub ssh rsa:  \n %s", string(authKeysDataAll))
+					for {
+						if len(authKeysDataAll) > 0 {
+							var authKey ssh.PublicKey
+							var err error
+							authKey, _, _, authKeysDataAll, err = ssh.ParseAuthorizedKey(authKeysDataAll)
+							if err != nil {
+								log.Printf("Error while processing authorized keys file (%s) for user (%s), err (%v)", user.AuthorizedKeysFile, conn.User(), err)
+								return nil, fmt.Errorf("Error while processing authorized keys file.")
+							}
+
+							if (key.Type() == authKey.Type()) && (bytes.Compare(key.Marshal(), authKey.Marshal()) == 0) {
+								perm := &ssh.Permissions{
+									Extensions: map[string]string{
+										"authType": "pk",
+									},
+								}
+								return perm, nil
+							}
+						} else {
+							return nil, fmt.Errorf("No PKs Match - ACCESS DENIED")
+						}
+					}
+					// } else {
+					// 	return nil, fmt.Errorf("User has not authorized keys file specified.")
+					// }
 				}
 			},
 		},

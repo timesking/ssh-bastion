@@ -2,7 +2,7 @@
 
 - SSH multiplexing support
 - host_pubkeys is option now. If not configured, go with `hostKeyCallback := ssh.InsecureIgnoreHostKey()`
-
+- AWS IAM User mapping with IAM user CodeCommit public key
 
 # SSH-BASTION
 A logging SSH relay, with LDAP & public key auth.
