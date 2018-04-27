@@ -138,7 +138,7 @@ func (s *SSHServer) SessionForward(sshConn sshConnection, newChannel ssh.NewChan
 			sesschan.Close()
 			return
 		} else {
-			svr, err := InteractiveSelection(sesschan, "Please choose from the following servers:", acl.GetServerChoices())
+			svr, err := InteractiveSelection(sesschan, "Please choose from the following servers:", acl)
 			if err != nil {
 				fmt.Fprintf(sesschan, "Error processing server selection.\r\n")
 				sesschan.Close()

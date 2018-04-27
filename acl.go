@@ -18,7 +18,11 @@ type ACLSSHConfigServer struct {
 	AclExtraParam string
 }
 
-var serverFreshForce chan bool
+type refreshServerChan struct {
+	Done chan bool
+}
+
+var serverFreshForce chan refreshServerChan
 var serverRefreshOnce sync.Once
 var serverRefreshLock sync.RWMutex
 var Servers map[string]ACLSSHConfigServer
@@ -164,12 +168,12 @@ func RefreshServers() {
 	}
 
 	serverRefreshOnce.Do(func() {
-		serverFreshForce := make(chan bool, 1)
+		serverFreshForce = make(chan refreshServerChan, 1)
 		go func() {
 			bias := time.Duration(1)
 			for {
 				select {
-				case <-serverFreshForce:
+				case v := <-serverFreshForce:
 					err := GenerateServers()
 					if err != nil {
 						bias = bias * 2
@@ -179,8 +183,13 @@ func RefreshServers() {
 					} else {
 						bias = time.Duration(1)
 					}
+
+					v.Done <- true
+
 				case <-time.After(2 * bias * time.Minute):
-					serverFreshForce <- true
+					serverFreshForce <- refreshServerChan{
+						Done: make(chan bool),
+					}
 				}
 			}
 		}()
