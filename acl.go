@@ -5,6 +5,8 @@ import (
 	"log"
 	"regexp"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -16,10 +18,17 @@ type ACLSSHConfigServer struct {
 	AclExtraParam string
 }
 
+var serverFreshForce chan bool
+var serverRefreshOnce sync.Once
+var serverRefreshLock sync.RWMutex
 var Servers map[string]ACLSSHConfigServer
 var AWSServerList map[string][]string
+var allRegionsCache []string
 
-func GenerateServers() {
+func GenerateServers() error {
+	serverRefreshLock.Lock()
+	defer serverRefreshLock.Unlock()
+	log.Println("GenerateServers refresh start")
 	// Servers
 	Servers = make(map[string]ACLSSHConfigServer)
 	AWSServerList = make(map[string][]string)
@@ -29,17 +38,21 @@ func GenerateServers() {
 		}
 	}
 
+	if allRegionsCache == nil || len(allRegionsCache) <= 0 {
+		fregions, err := fetchRegion()
+		if err != nil {
+			log.Printf("Error fetchRegion: %s", err)
+			// return err
+		}
+		allRegionsCache = fregions
+	}
+
 	for lstKey, lst := range config.AWSInstances {
 		regions := []string{}
 		if lst.Regions != nil && len(lst.Regions) > 0 {
 			regions = append(regions, lst.Regions...)
 		} else {
-			fregions, err := fetchRegion()
-			if err != nil {
-				log.Printf("Error fetchRegion: %s", err)
-			} else {
-				regions = append(regions, fregions...)
-			}
+			regions = append(regions, allRegionsCache...)
 		}
 
 		var machines []string
@@ -61,46 +74,50 @@ func GenerateServers() {
 			result, err := ec2Svc.DescribeInstances(params)
 			if err != nil {
 				fmt.Println("Error", err)
-			} else {
-				for _, reservation := range result.Reservations {
-					for _, instance := range reservation.Instances {
-						var nt string
-						for _, t := range instance.Tags {
-							if *t.Key == "Name" {
-								nt = *t.Value
-								break
-							}
-						}
-						// machines = append(machines, fmt.Sprint(*instance.InstanceId, *instance.State.Name, *instance.PrivateIpAddress, nt))
-						// fmt.Println(region, *instance.InstanceId, *instance.State.Name, *instance.PrivateIpAddress, nt)
+				return err
+			}
 
-						server := lst.SSHConfigServer
-						if matched, err := regexp.MatchString(lst.RegexFilter, nt); matched {
-							server.ConnectPath = strings.Replace(server.ConnectPath, "privateip", *instance.PrivateIpAddress, -1)
-							server.ConnectPath = strings.Replace(server.ConnectPath, "publicip", *instance.PublicIpAddress, -1)
-							asss := ACLSSHConfigServer{
-								SSHConfigServer: server,
-								AclExtraParam:   lstKey,
-							}
-							log.Printf("aws instances: %v", asss)
-							Servers[nt] = asss
-							machines = append(machines, nt)
-							AWSServerList[lstKey] = machines
-						} else {
-							if err != nil {
-								log.Printf("Error aws regex problem: %s", err)
-							}
+			for _, reservation := range result.Reservations {
+				for _, instance := range reservation.Instances {
+					var nt string
+					for _, t := range instance.Tags {
+						if *t.Key == "Name" {
+							nt = *t.Value
+							break
+						}
+					}
+					// machines = append(machines, fmt.Sprint(*instance.InstanceId, *instance.State.Name, *instance.PrivateIpAddress, nt))
+					// fmt.Println(region, *instance.InstanceId, *instance.State.Name, *instance.PrivateIpAddress, nt)
+
+					server := lst.SSHConfigServer
+					if matched, err := regexp.MatchString(lst.RegexFilter, nt); matched {
+						server.ConnectPath = strings.Replace(server.ConnectPath, "privateip", *instance.PrivateIpAddress, -1)
+						server.ConnectPath = strings.Replace(server.ConnectPath, "publicip", *instance.PublicIpAddress, -1)
+						asss := ACLSSHConfigServer{
+							SSHConfigServer: server,
+							AclExtraParam:   lstKey,
+						}
+						// log.Printf("aws instances: %v", asss)
+						name := fmt.Sprintf("%s |***| %s", nt, *instance.InstanceId)
+						Servers[name] = asss
+						machines = append(machines, name)
+						AWSServerList[lstKey] = machines
+					} else {
+						if err != nil {
+							log.Printf("Error aws regex problem: %s", err)
 						}
 					}
 				}
 			}
-
 		}
-
 	}
+	return nil
 }
 
 func (acl *SSHConfigACL) GetServerChoices() []string {
+	serverRefreshLock.RLock()
+	defer serverRefreshLock.RUnlock()
+
 	choices := []string{}
 	choices = append(choices, acl.AllowedServers...)
 
@@ -113,13 +130,23 @@ func (acl *SSHConfigACL) GetServerChoices() []string {
 	return choices
 }
 
+func GetServerByChoice(server string) (ACLSSHConfigServer, bool) {
+	serverRefreshLock.RLock()
+	defer serverRefreshLock.RUnlock()
+
+	if s, ok := Servers[server]; ok {
+		return s, ok
+	} else {
+		return ACLSSHConfigServer{}, ok
+	}
+}
+
 func fetchRegion() ([]string, error) {
 	awsSession := session.Must(session.NewSession(&aws.Config{Region: aws.String("us-west-2")}))
 
 	svc := ec2.New(awsSession)
 	awsRegions, err := svc.DescribeRegions(&ec2.DescribeRegionsInput{})
 	if err != nil {
-		fmt.Println("22")
 		return nil, err
 	}
 
@@ -129,4 +156,33 @@ func fetchRegion() ([]string, error) {
 	}
 
 	return regions, nil
+}
+
+func RefreshServers() {
+	if err := GenerateServers(); err != nil {
+		log.Fatalln("RefreshServers first time err: %s", err.Error())
+	}
+
+	serverRefreshOnce.Do(func() {
+		serverFreshForce := make(chan bool, 1)
+		go func() {
+			bias := time.Duration(1)
+			for {
+				select {
+				case <-serverFreshForce:
+					err := GenerateServers()
+					if err != nil {
+						bias = bias * 2
+						if bias >= time.Duration(8) {
+							bias = time.Duration(8)
+						}
+					} else {
+						bias = time.Duration(1)
+					}
+				case <-time.After(2 * bias * time.Minute):
+					serverFreshForce <- true
+				}
+			}
+		}()
+	})
 }

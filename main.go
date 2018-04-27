@@ -43,7 +43,7 @@ func main() {
 		panic(err)
 	}
 
-	GenerateServers()
+	RefreshServers()
 	s.ListenAndServe(config.Global.ListenPath)
 }
 

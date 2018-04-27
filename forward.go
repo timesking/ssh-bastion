@@ -145,7 +145,7 @@ func (s *SSHServer) SessionForward(sshConn sshConnection, newChannel ssh.NewChan
 				return
 			}
 
-			if server, ok := Servers[svr]; !ok {
+			if server, ok := GetServerByChoice(svr); !ok {
 				fmt.Fprintf(sesschan, "Incorrectly Configured Server Selected.\r\n")
 				sesschan.Close()
 				return
