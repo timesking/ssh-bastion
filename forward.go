@@ -138,20 +138,20 @@ func (s *SSHServer) SessionForward(sshConn sshConnection, newChannel ssh.NewChan
 			sesschan.Close()
 			return
 		} else {
-			svr, err := InteractiveSelection(sesschan, "Please choose from the following servers:", acl.AllowedServers)
+			svr, err := InteractiveSelection(sesschan, "Please choose from the following servers:", acl.GetServerChoices())
 			if err != nil {
 				fmt.Fprintf(sesschan, "Error processing server selection.\r\n")
 				sesschan.Close()
 				return
 			}
 
-			if server, ok := config.Servers[svr]; !ok {
+			if server, ok := Servers[svr]; !ok {
 				fmt.Fprintf(sesschan, "Incorrectly Configured Server Selected.\r\n")
 				sesschan.Close()
 				return
 			} else {
 				remote_name = svr
-				remote = server
+				remote = server.SSHConfigServer
 			}
 		}
 	}

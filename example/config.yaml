@@ -19,6 +19,16 @@ global:
     ## so the service can be run as a non-root user.
     ## You can use iptables NATing to redirect users from port 22.
     listen_path:    "0.0.0.0:2222"
+awsinstances:
+    list1:
+        regions:
+            - "us-west-2"
+            - "us-east-1"
+        regex: 'devop.*'
+        connect_path: 'privateip:22' # privateip/publicip
+        login_user: root
+        login_privatekey: "data/pub/blastops.pem"  
+
 servers:
     ## An array of servers that clients can jump to.
     vdev1.ad.domain.local:
@@ -40,6 +50,8 @@ acls:
     ## An array of ACLs that allow multiple users to be assigned the same
     ## list of servers they are allowed to connect to.
     development:
+        aws_allow_list:
+            - list1
         allow_list:
             ## Name of server from the "servers" array.
             - "vdev1.ad.domain.local"

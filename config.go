@@ -8,10 +8,11 @@ import (
 )
 
 type SSHConfig struct {
-	Global  SSHConfigGlobal            `yaml:"global"`
-	Servers map[string]SSHConfigServer `yaml:"servers"`
-	ACLs    map[string]SSHConfigACL    `yaml:"acls"`
-	Users   map[string]SSHConfigUser   `yaml:"users"`
+	Global       SSHConfigGlobal               `yaml:"global"`
+	Servers      map[string]SSHConfigServer    `yaml:"servers"`
+	AWSInstances map[string]AWSSSHConfigServer `yaml:"awsinstances"`
+	ACLs         map[string]SSHConfigACL       `yaml:"acls"`
+	Users        map[string]SSHConfigUser      `yaml:"users"`
 }
 
 type SSHConfigGlobal struct {
@@ -25,6 +26,12 @@ type SSHConfigGlobal struct {
 	ListenPath   string   `yaml:"listen_path"`
 }
 
+type AWSSSHConfigServer struct {
+	SSHConfigServer `yaml:",inline"`
+	RegexFilter     string   `yaml:"regex"`
+	Regions         []string `yaml:"regions"`
+}
+
 type SSHConfigServer struct {
 	HostPubKeyFiles []string `yaml:"host_pubkeys"`
 	ConnectPath     string   `yaml:"connect_path"`
@@ -33,7 +40,8 @@ type SSHConfigServer struct {
 }
 
 type SSHConfigACL struct {
-	AllowedServers []string `yaml:"allow_list"`
+	AllowedServers    []string `yaml:"allow_list"`
+	AWSAllowedServers []string `yaml:"aws_allow_list"`
 }
 
 type SSHConfigUser struct {
