@@ -3,39 +3,40 @@ package main
 import (
 	"fmt"
 	"io"
+	"log"
 	"strconv"
 	"strings"
+	"time"
 
-	"golang.org/x/crypto/ssh/terminal"
+	"github.com/schollz/closestmatch"
 )
 
 func InteractiveSelection(c io.ReadWriter, prompt string, acl SSHConfigACL) (string, error) {
-	t := terminal.NewTerminal(c, "Please Enter A Server ID: ")
+
+	t := NewTerminal(c, "\r\nPlease Enter A Server ID: ")
 	var choices []string
 
 	generateChoice := func() {
-		fmt.Fprintf(c, "%s\r\n", prompt)
+		fmt.Fprintf(t, "%s\r\n", prompt)
 		choices = acl.GetServerChoices()
 		for i, v := range choices {
-			fmt.Fprintf(c, "    [ %2d ] %s\r\n", i+1, v)
+			fmt.Fprintf(t, "    [ %2d ] %s\r\n", i+1, v)
 		}
 
-		// t.AutoCompleteCallback = func(line string, pos int, key rune) (newLine string, newPos int, ok bool) {
-		// 	bagSizes := []int{2}
-		// 	cm := closestmatch.New(choices, bagSizes)
-		// 	// log.Println("Find ClosestN", "+", line)
-		// 	chose := cm.ClosestN(line, 10)
-		// 	// log.Println("ClosestN", "+", chose)
-		// 	if len(chose) > 0 {
-		// 		// log.Println("ClosestN1")
-		// 		fmt.Fprintf(c, "\r\n")
-		// 		for _, cs := range chose {
-		// 			fmt.Fprintf(c, "chose: %s\r", cs)
-		// 		}
-		// 		return line, pos, false
-		// 	}
-		// 	return line, pos, false
-		// }
+		t.AutoCompleteCallback = func(line string, pos int, key rune) (newLine string, newPos int, ok bool) {
+			bagSizes := []int{2}
+			cm := closestmatch.New(choices, bagSizes)
+			log.Println("AutoCompleteCallback Pos: ", "+", pos, line)
+			// log.Println("Find ClosestN", "+", line)
+			chose := cm.ClosestN(line, 10)
+
+			if len(chose) > 0 {
+				log.Println("AutoCompleteCallback 2: ", "+", line, chose[0])
+				line = fmt.Sprintf("%s\r\n%s", line, chose[0])
+				return line, pos, false
+			}
+			return line, pos, false
+		}
 	}
 
 	generateChoice()
@@ -65,7 +66,8 @@ func InteractiveSelection(c io.ReadWriter, prompt string, acl SSHConfigACL) (str
 
 			ct = 0
 			//clear screen
-			t.Write([]byte("\033[2J"))
+			t.handleKey(keyClearScreen)
+			time.Sleep(time.Duration(1) * time.Second)
 			generateChoice()
 			continue
 		case "exit":

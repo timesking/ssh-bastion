@@ -183,7 +183,7 @@ func RefreshServers() {
 					} else {
 						bias = time.Duration(1)
 					}
-
+					log.Println("serverFreshForce Done")
 					v.Done <- true
 
 				case <-time.After(2 * bias * time.Minute):
