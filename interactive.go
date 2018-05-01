@@ -17,22 +17,23 @@ func InteractiveSelection(c io.ReadWriter, prompt string, acl SSHConfigACL) (str
 	var choices []string
 
 	generateChoice := func() {
-		fmt.Fprintf(t, "%s\r\n", prompt)
+		t.handleKey(keyClearScreen)
+		fmt.Fprintf(t, "%s", prompt)
 		choices = acl.GetServerChoices()
 		for i, v := range choices {
-			fmt.Fprintf(t, "    [ %2d ] %s\r\n", i+1, v)
+			fmt.Fprintf(t, "    [ %2d ] %s", i+1, v)
 		}
 
 		t.AutoCompleteCallback = func(line string, pos int, key rune) (newLine string, newPos int, ok bool) {
-			bagSizes := []int{2}
+			bagSizes := []int{4}
 			cm := closestmatch.New(choices, bagSizes)
 			log.Println("AutoCompleteCallback Pos: ", "+", pos, line)
 			// log.Println("Find ClosestN", "+", line)
 			chose := cm.ClosestN(line, 10)
 
 			if len(chose) > 0 {
-				log.Println("AutoCompleteCallback 2: ", "+", line, chose[0])
-				line = fmt.Sprintf("%s\r\n%s", line, chose[0])
+				log.Println("AutoCompleteCallback 2: ", "+", line, chose)
+				line = fmt.Sprintf("%s\r\n%s", line, strings.Join(chose[:], "\r\n"))
 				return line, pos, false
 			}
 			return line, pos, false
@@ -65,8 +66,10 @@ func InteractiveSelection(c io.ReadWriter, prompt string, acl SSHConfigACL) (str
 			<-done
 
 			ct = 0
-			//clear screen
-			t.handleKey(keyClearScreen)
+			// clear screen
+
+			// t.Write([]byte("\033[2J"))
+
 			time.Sleep(time.Duration(1) * time.Second)
 			generateChoice()
 			continue
