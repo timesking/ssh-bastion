@@ -3,12 +3,9 @@ package main
 import (
 	"fmt"
 	"io"
-	"log"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/schollz/closestmatch"
 )
 
 func InteractiveSelection(c io.ReadWriter, prompt string, acl SSHConfigACL) (string, error) {
@@ -24,20 +21,20 @@ func InteractiveSelection(c io.ReadWriter, prompt string, acl SSHConfigACL) (str
 			fmt.Fprintf(t, "    [ %2d ] %s", i+1, v)
 		}
 
-		t.AutoCompleteCallback = func(line string, pos int, key rune) (newLine string, newPos int, ok bool) {
-			bagSizes := []int{4}
-			cm := closestmatch.New(choices, bagSizes)
-			log.Println("AutoCompleteCallback Pos: ", "+", pos, line)
-			// log.Println("Find ClosestN", "+", line)
-			chose := cm.ClosestN(line, 10)
+		// t.AutoCompleteCallback = func(line string, pos int, key rune) (newLine string, newPos int, ok bool) {
+		// 	bagSizes := []int{4}
+		// 	cm := closestmatch.New(choices, bagSizes)
+		// 	log.Println("AutoCompleteCallback Pos: ", "+", pos, line)
+		// 	// log.Println("Find ClosestN", "+", line)
+		// 	chose := cm.ClosestN(line, 10)
 
-			if len(chose) > 0 {
-				log.Println("AutoCompleteCallback 2: ", "+", line, chose)
-				line = fmt.Sprintf("%s\r\n%s", line, strings.Join(chose[:], "\r\n"))
-				return line, pos, false
-			}
-			return line, pos, false
-		}
+		// 	if len(chose) > 0 {
+		// 		log.Println("AutoCompleteCallback 2: ", "+", line, chose)
+		// 		line = fmt.Sprintf("%s\r\n%s", line, strings.Join(chose[:], "\r\n"))
+		// 		return line, pos, false
+		// 	}
+		// 	return line, pos, false
+		// }
 	}
 
 	generateChoice()
