@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -127,6 +128,7 @@ func (acl *SSHConfigACL) GetServerChoices() []string {
 
 	for _, v := range acl.AWSAllowedServers {
 		if l, ok := AWSServerList[v]; ok {
+			sort.Strings(l)
 			choices = append(choices, l...)
 		}
 	}
@@ -188,7 +190,7 @@ func RefreshServers() {
 
 				case <-time.After(2 * bias * time.Minute):
 					serverFreshForce <- refreshServerChan{
-						Done: make(chan bool),
+						Done: make(chan bool, 1),
 					}
 				}
 			}

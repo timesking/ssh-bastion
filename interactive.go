@@ -56,7 +56,7 @@ func InteractiveSelection(c io.ReadWriter, prompt string, acl SSHConfigACL) (str
 		// log.Printf("Input: %s, %v", sel, cap(serverFreshForce))
 		switch strings.TrimSpace(sel) {
 		case "r":
-			done := make(chan bool)
+			done := make(chan bool, 1)
 			serverFreshForce <- refreshServerChan{
 				Done: done,
 			}
