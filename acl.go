@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 )
@@ -59,11 +60,18 @@ func GenerateServers() error {
 		} else {
 			regions = append(regions, allRegionsCache...)
 		}
+		var creds *credentials.Credentials
+		creds = nil
+		if len(lst.AwsAccessKey) > 0 || len(lst.AwsSecretKey) > 0 {
+			//TODO: last "" should be token comes from assume role
+			creds = credentials.NewStaticCredentials(lst.AwsAccessKey, lst.AwsSecretKey, "")
+		}
 
 		var machines []string
 		for _, region := range regions {
 			sess := session.Must(session.NewSession(&aws.Config{
-				Region: aws.String(region),
+				Region:      aws.String(region),
+				Credentials: creds,
 			}))
 
 			ec2Svc := ec2.New(sess)
@@ -97,13 +105,21 @@ func GenerateServers() error {
 					server := lst.SSHConfigServer
 					if matched, err := regexp.MatchString(lst.RegexFilter, nt); matched {
 						server.ConnectPath = strings.Replace(server.ConnectPath, "privateip", *instance.PrivateIpAddress, -1)
-						server.ConnectPath = strings.Replace(server.ConnectPath, "publicip", *instance.PublicIpAddress, -1)
+						if strings.Contains(server.ConnectPath, "publicip") {
+							if instance.PublicIpAddress != nil {
+								server.ConnectPath = strings.Replace(server.ConnectPath, "publicip", *instance.PublicIpAddress, -1)
+							} else {
+								log.Printf("Instance %s, no public ip", *instance.InstanceId)
+								continue
+							}
+						}
+
 						asss := ACLSSHConfigServer{
 							SSHConfigServer: server,
 							AclExtraParam:   lstKey,
 						}
 						// log.Printf("aws instances: %v", asss)
-						name := fmt.Sprintf("%s |***| %s", nt, *instance.InstanceId)
+						name := fmt.Sprintf("%s |***| %s |***| %s", region, nt, *instance.InstanceId)
 						Servers[name] = asss
 						machines = append(machines, name)
 						AWSServerList[lstKey] = machines

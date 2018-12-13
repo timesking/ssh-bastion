@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v2"
 )
 
 type SSHConfig struct {
@@ -30,6 +30,8 @@ type AWSSSHConfigServer struct {
 	SSHConfigServer `yaml:",inline"`
 	RegexFilter     string   `yaml:"regex"`
 	Regions         []string `yaml:"regions"`
+	AwsAccessKey    string   `yaml:"AWS_ACCESS_KEY_ID,omitempty"`
+	AwsSecretKey    string   `yaml:"AWS_SECRET_ACCESS_KEY,omitempty"`
 }
 
 type SSHConfigServer struct {

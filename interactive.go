@@ -80,7 +80,7 @@ func InteractiveSelection(c io.ReadWriter, prompt string, acl SSHConfigACL) (str
 			continue
 		}
 
-		if (i < 0) || (i > len(choices)) {
+		if (i <= 0) || (i > len(choices)) {
 			continue
 		} else {
 			return choices[(i - 1)], err
