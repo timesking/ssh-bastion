@@ -104,9 +104,12 @@ func GenerateServers() error {
 
 					server := lst.SSHConfigServer
 					if matched, err := regexp.MatchString(lst.RegexFilter, nt); matched {
+						var privateip, publicip string
+						privateip = *instance.PrivateIpAddress
 						server.ConnectPath = strings.Replace(server.ConnectPath, "privateip", *instance.PrivateIpAddress, -1)
 						if strings.Contains(server.ConnectPath, "publicip") {
 							if instance.PublicIpAddress != nil {
+								publicip = *instance.PublicIpAddress
 								server.ConnectPath = strings.Replace(server.ConnectPath, "publicip", *instance.PublicIpAddress, -1)
 							} else {
 								log.Printf("Instance %s, no public ip", *instance.InstanceId)
@@ -119,7 +122,8 @@ func GenerateServers() error {
 							AclExtraParam:   lstKey,
 						}
 						// log.Printf("aws instances: %v", asss)
-						name := fmt.Sprintf("%s |***| %s |***| %s", region, nt, *instance.InstanceId)
+						// name := fmt.Sprintf("%s |***| %s |***| %s", region, nt, *instance.InstanceId)
+						name := fmt.Sprintf("%s |***| %s |***| privateip:%s, publicip:%s", region, nt, privateip, publicip)
 						Servers[name] = asss
 						machines = append(machines, name)
 						AWSServerList[lstKey] = machines
