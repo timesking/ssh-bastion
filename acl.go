@@ -105,7 +105,14 @@ func GenerateServers() error {
 					server := lst.SSHConfigServer
 					if matched, err := regexp.MatchString(lst.RegexFilter, nt); matched {
 						var privateip, publicip string
-						privateip = *instance.PrivateIpAddress
+						if instance.PrivateIpAddress != nil {
+							privateip = *instance.PrivateIpAddress
+						} else {
+							// even with protection of listing only running instance.
+							// I got a nil pointer crash due to private ip is not ready yet.
+							break
+						}
+
 						server.ConnectPath = strings.Replace(server.ConnectPath, "privateip", *instance.PrivateIpAddress, -1)
 						if strings.Contains(server.ConnectPath, "publicip") {
 							if instance.PublicIpAddress != nil {
