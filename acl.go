@@ -114,14 +114,16 @@ func GenerateServers() error {
 						}
 
 						server.ConnectPath = strings.Replace(server.ConnectPath, "privateip", *instance.PrivateIpAddress, -1)
-						if strings.Contains(server.ConnectPath, "publicip") {
-							if instance.PublicIpAddress != nil {
-								publicip = *instance.PublicIpAddress
+
+						if instance.PublicIpAddress != nil {
+							publicip = *instance.PublicIpAddress
+							//show public ip always, but change connect path only when publicip presents.
+							if strings.Contains(server.ConnectPath, "publicip") {
 								server.ConnectPath = strings.Replace(server.ConnectPath, "publicip", *instance.PublicIpAddress, -1)
-							} else {
-								log.Printf("Instance %s, no public ip", *instance.InstanceId)
-								continue
 							}
+						} else {
+							log.Printf("Instance %s, no public ip", *instance.InstanceId)
+							continue
 						}
 
 						asss := ACLSSHConfigServer{
